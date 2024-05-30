@@ -4,52 +4,47 @@ import fs from "fs";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 
-export async function RunThread(threadId: string, query: string, onData: (data: string) => void): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-        const threadMessages = await openai.beta.threads.messages.create(
-            threadId,
-            { role: "user", content: query }
-        );
 
-        console.log(threadMessages + " added to thread")
+export async function AddMessageToThread(threadId :string, query: string) {
+    const threadMessages = await openai.beta.threads.messages.create(
+        threadId,
+        { role: "user", content: query }
+    );
 
-        const stream = openai.beta.threads.runs.stream(threadId, {
-            assistant_id: process.env.ASSISTANT_ID || "",
-        });
+    return threadMessages
+}
 
-        stream
-            .on('textCreated', () => console.log('assistant >'))
-            .on('toolCallCreated', (event) => console.log('assistant ' + event.type))
-            .on('messageDone', async (event) => {
-                if (event.content[0].type === 'text') {
-                    const { text } = event.content[0];
-                    const { annotations } = text;
-                    const citations: string[] = [];
+export async function RunThread(threadId: string, query: string, onData: (data: string) => void):  Promise<void>  {
+ 
 
-                    let index = 0;
-                    for await (let annotation of annotations) {
-                        text.value = text.value.replace(annotation.text, '[' + index + ']');
-                        const { file_citation } = annotation;
-                        if (file_citation) {
-                            const citedFile = await openai.files.retrieve(file_citation.file_id);
-                            citations.push('[' + index + ']' + citedFile.filename);
-                        }
-                        index++;
-                    }
-                    
-                }
-            });
-
-        stream.on('error', (err) => {
-            console.error('Error streaming response:', err);
-            reject(err); // Reject the Promise on error.
-        });
-
-        stream.on('end', () => {
-            console.log('Streaming finished.');
-            resolve(); // Resolve the Promise when streaming is finished.
-        });
+    const stream = openai.beta.threads.runs.stream(threadId, {
+        assistant_id: process.env.ASSISTANT_ID || "",
     });
+
+    stream
+        // .on('textCreated', () => console.log('assistant >'))
+        // .on('toolCallCreated', (event) => console.log('assistant ' + event.type))
+        .on('messageDone', async (event) => {
+            if (event.content[0].type === 'text') {
+                const { text } = event.content[0];
+                const { annotations } = text;
+                const citations: string[] = [];
+
+                let index = 0;
+                for (let annotation of annotations) {
+                    text.value = text.value.replace(annotation.text, '[' + index + ']');
+                    // const { file_citation } = annotation;
+                    // if (file_citation) {
+                    //     const citedFile = await openai.files.retrieve(file_citation.file_id);
+                    //     citations.push('[' + index + ']' + citedFile.filename);
+                    // }
+                    index++;
+                    // onData(text.value + '\n' + citations.join('\n'));
+                    onData(text.value);
+                }
+                
+            }
+        });
 }
 
 export async function CreateThreadWithFile(filepath: string, query: string) {

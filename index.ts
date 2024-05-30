@@ -3,7 +3,7 @@ import express from "express";
 import fileUpload from "express-fileupload";
 import { GetTextFromPDF }  from './pdfExport';
 import { Summarize } from './summarizer';
-import {CreateThreadWithFile, RunThread} from './assistant';
+import {CreateThreadWithFile, RunThread, AddMessageToThread} from './assistant';
 import cors from 'cors';
 
 
@@ -19,7 +19,7 @@ app.use(cors());
 app.post('/create-thread', async (req, res) => {
     if (req.files) {
         const filePath = path.join(__dirname, 'temp', req.files.foo.name);
-        await req.files.foo.mv(filePath);
+        // await req.files.foo.mv(filePath);
 
         const threadId = await CreateThreadWithFile(filePath, req.body.query);
 
@@ -36,14 +36,14 @@ app.post('/run-thread', async (req, res) => {
         return res.status(400).send('Invalid request.');
     }
     console.log(threadId, query);
-    res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Transfer-Encoding', 'chunked');
+    const message = await AddMessageToThread(threadId, query);
+    console.log(message);
     
-    await RunThread(threadId, query, (data) => {
+    await RunThread(threadId, query , (data) => {
         console.log(data);
-        res.write(data);
+        res.json({reply: data});
     });
-    res.end();
+    // res.end();
 });
 
 app.post('/upload', async (req, res) => {

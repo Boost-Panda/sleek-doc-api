@@ -1,9 +1,9 @@
 import path from 'path';
-import fs from 'fs';
 import express from "express";
 import fileUpload from "express-fileupload";
 import { GetTextFromPDF }  from './pdfExport';
 import { Summarize } from './summarizer';
+import {CreateThreadWithFile, RunThread} from './assistant';
 import cors from 'cors';
 
 
@@ -14,6 +14,37 @@ const port = 8080;
 
 
 app.use(cors());
+
+// thread_Tci1Bjn8zAxcNPFkNSQGwlJq
+app.post('/create-thread', async (req, res) => {
+    if (req.files) {
+        const filePath = path.join(__dirname, 'temp', req.files.foo.name);
+        await req.files.foo.mv(filePath);
+
+        const threadId = await CreateThreadWithFile(filePath, req.body.query);
+
+        res.json({ threadId: threadId});
+    }
+    else {
+        res.status(500).send('No files were uploaded.');
+    }
+});
+
+app.post('/run-thread', async (req, res) => {
+    const { threadId, query } = req.body;
+    if (!threadId || !query) {
+        return res.status(400).send('Invalid request.');
+    }
+    console.log(threadId, query);
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    
+    await RunThread(threadId, query, (data) => {
+        console.log(data);
+        res.write(data);
+    });
+    res.end();
+});
 
 app.post('/upload', async (req, res) => {
     console.log(req.files); // the uploaded file object
